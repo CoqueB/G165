@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+g165.egg-info/PKG-INFO
+g165.egg-info/SOURCES.txt
+g165.egg-info/dependency_links.txt
+g165.egg-info/requires.txt
+g165.egg-info/top_level.txt
