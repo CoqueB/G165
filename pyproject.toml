@@ -11,3 +11,8 @@ dependencies = [
     "pandas>=2.2.3",
     "photutils>=2.2.0",
 ]
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+]
