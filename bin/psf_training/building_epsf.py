@@ -122,48 +122,83 @@ plt.show()
 
 
 #----------------------------------#
-fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(15, 25), squeeze=False)
+nstars = len(stars) # Total number of stars (404)
+current_index = [0]  # so we can modify it inside callbacks
 
-# Number of stars to show
-nstars = 5
-cutout_size = stars[0].data.shape[0]  # assume square cutouts (25)
+# Set up figure and axes
+cutout_size = stars[0].data.shape[0] # The width & height of the cutout
+fig = plt.figure(figsize=(10, 3)) # Creates a figure with size 10x3 inches
+gs = fig.add_gridspec(1, 5, width_ratios=[1.5, 1, 1, 0.5, 0.5]) # Defines a 1 row, 5 column grid layout 
+# <width_ratios> sets the relative width of each column
 
-# Set figure size so each pixel is visible clearly (e.g., scale=0.4 inches per pixel)
-scale = 0.4
-fig_width = 3 * cutout_size * scale  # 3 plots per star (cutout + 2 profiles)
-fig_height = nstars * cutout_size * scale
+# Positions plots and buttons in the grid
+ax_img = fig.add_subplot(gs[0])
+ax_x = fig.add_subplot(gs[1])
+ax_y = fig.add_subplot(gs[2])
+ax_prev = fig.add_subplot(gs[3])
+ax_next = fig.add_subplot(gs[4])
 
-fig, ax = plt.subplots(nrows=nstars, ncols=3, figsize=(fig_width, fig_height), squeeze=False)
+# Turns the last 2 plots into pressable buttons
+btn_prev = Button(ax_prev, 'Previous')
+btn_next = Button(ax_next, 'Next')
 
-for i in range(nstars):
-    star_data = stars[i].data
+# Now change the button height and width via the `ax_prev` and `ax_next` axes
+btn_prev.ax.set_aspect(2)  # Increase aspect ratio for height
+btn_next.ax.set_aspect(2)  # Increase aspect ratio for height
 
-    # Plot 1: Star cutout
+
+# Plot updater function
+def update_plot(index):
+    # Clears the first 3 plots on those axes
+    ax_img.clear()
+    ax_x.clear()
+    ax_y.clear()
+
+    # Gets the star data and normalizes it for better visualization
+    star_data = stars[index].data
     norm = simple_norm(star_data, 'log', percent=99.0)
-    ax[i, 0].imshow(star_data, norm=norm, origin='lower', cmap='viridis')
-    ax[i, 0].set_title(f'Star {i+1}')
-    
-    # Plot 2: Vertical profile (sum across rows)
-    column_sum = star_data.sum(axis=0)
-    ax[i, 1].plot(range(star_data.shape[1]), column_sum, color='tab:blue')
-    ax[i, 1].set_title('Brightness vs X')
-    ax[i, 1].set_xlabel('X Position')
-    ax[i, 1].set_ylabel('Sum of Brightness')
-    
-    # Plot 3: Horizontal profile (sum across columns)
-    row_sum = star_data.sum(axis=1)
-    ax[i, 2].plot(row_sum, range(star_data.shape[0]), color='tab:orange')
-    ax[i, 2].set_title('Brightness vs Y')
-    ax[i, 2].set_ylabel('Y Position')
-    ax[i, 2].set_xlabel('Sum of Brightness')
-    ax[i, 2].invert_yaxis()  # Match image orientation
 
-# Optional cleanup for tighter layout
-for axs in ax.ravel():
-    axs.label_outer()  # hide x/y ticks where not needed
+    # Adds the star cutout plot on the first axis/subplot
+    ax_img.imshow(star_data, norm=norm, origin='lower', cmap='viridis')
+    ax_img.set_title(f'Star {index + 1} of {nstars}')
 
+    # .sum() method is a NumPy array method that computes the sum of the array's elements along a specified axis.
+    col_sum = star_data.sum(axis=0) # Brightness summed vertically over each x
+    row_sum = star_data.sum(axis=1) # Brightness summed horizontally over each y
+
+    # Plots the sum column brightnesses against x
+    ax_x.plot(range(star_data.shape[1]), col_sum, color='tab:blue')
+    ax_x.set_title('Brightness vs X')
+    ax_x.set_xlabel('X Position')
+    ax_x.set_ylabel('Sum')
+
+    # Plots the sum row brightnesses against y
+    ax_y.plot(row_sum, range(star_data.shape[0]), color='tab:orange')
+    ax_y.set_title('Brightness vs Y')
+    ax_y.set_ylabel('Y Position')
+    ax_y.set_xlabel('Sum')
+    ax_y.invert_yaxis() # inverts to match the image orientation
+
+    plt.draw() # Redraws the figure to show the updated plots
+
+
+# Increments the index by 1, wraps around to the first star when you're at the last star
+def next_star(event):
+    # assume you're at index nstars-1 (<nstars>th star), when you 
+    # press next it will go to index 0 (first star)
+    current_index[0] = (current_index[0] + 1) % nstars 
+    update_plot(current_index[0])
+
+# Same as next_star() but decrements the index by 1
+def prev_star(event):
+    current_index[0] = (current_index[0] - 1) % nstars
+    update_plot(current_index[0])
+
+btn_next.on_clicked(next_star)
+btn_prev.on_clicked(prev_star)
+
+update_plot(current_index[0])
 plt.tight_layout()
-plt.savefig('figures/star_profiles_grid.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 
