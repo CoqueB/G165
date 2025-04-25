@@ -194,10 +194,15 @@ def prev_star(event):
     current_index[0] = (current_index[0] - 1) % nstars
     update_plot(current_index[0])
 
+# When btn_<action> is pressed, call the function <action> which increments/decrements the index
 btn_next.on_clicked(next_star)
 btn_prev.on_clicked(prev_star)
 
-update_plot(current_index[0])
+# this line makes sure the first star
+# is plotted at first by calling the update_plot() 
+# function and clearing the canvas/axes
+# then plt.show() displays the figure
+update_plot(current_index[0]) 
 plt.tight_layout()
 plt.show()
 
