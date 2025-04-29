@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 
 from astropy.visualization import simple_norm
+from astropy.visualization import ImageNormalize, LogStretch
+
 from photutils.datasets import (load_simulated_hst_star_image,
                                 make_noise_image)
 
@@ -20,6 +22,10 @@ from astropy.stats import sigma_clipped_stats # for sigma clipping (subtracring 
 from astropy.nddata import NDData
 
 matplotlib.use('TkAgg') # Use TkAgg backend for interactive plotting
+
+
+
+
 
 #------------------------------------#
 #---Loading & creating sample data---#
@@ -40,6 +46,9 @@ plt.title('Simulated HST Star Image')
 #plt.show()
 
 
+
+
+
 #-------------------------------------#
 #---Finding stars & their positions---#
 #-------------------------------------#
@@ -54,6 +63,9 @@ print(peaks_tbl.columns) # <TableColumns names=('id','x_peak','y_peak','peak_val
 #     x_peak   int64       
 #     y_peak   int64       
 # peak_value float64   %.8g
+
+
+
 
 
 #----------------------------------#
@@ -91,7 +103,6 @@ plt.title('Sigma Clipped Data')
 # with possible metadata 
 nddata = NDData(data=data) 
 
-
 # In <nddata>, creates a <size> sized cutouts, centered 
 # at <stars_tbl['x']> and <stars_tbl['y']>
 stars = extract_stars(nddata, stars_tbl, size=25)
@@ -107,12 +118,23 @@ images = []
 # Flattens the 2D array of axes into a 1D array of 25 plots, 
 # allowing indexing of axes with ax[i] in a loop instead of ax[row][col]
 ax = ax.ravel() 
+fixed_vmin = -5
+
 
 for i in range(nrows * ncols):
-    norm = simple_norm(stars[i], 'log', percent=99.0) # applies log stretch to the cutout
     
+    """
+    # 1) Stretch the cutout for better visualization
+    norm = simple_norm(stars[i], 'log', percent=99.0) # applies log stretch to the cutout
     # Plots the i-th star cutout (2D array) into subplot ax[i] stores each cutout in <im>
     im = ax[i].imshow(stars[i], norm=norm, origin='lower', cmap='viridis') 
+    """
+
+    # 2) Set a fixed vmin and vmax for all cutouts, uncomment for this version
+    star_data = stars[i].data  # EPSFStar object, so get the .data
+    vmax = star_data.max()  # Use brightest pixel for this cutout
+    im = ax[i].imshow(star_data, origin='lower', cmap='viridis',
+                      vmin=fixed_vmin, vmax=vmax)
     images.append(im)
 
 fig.colorbar(images[0], ax=ax.ravel().tolist(), 
@@ -121,14 +143,22 @@ plt.savefig('figures/psf_cutouts.png', dpi=300, bbox_inches='tight') # saves the
 plt.show()
 
 
-#----------------------------------#
+
+
+
+#-----------------------------------#
+#---Interactive Plotting of Stars---#
+#-----------------------------------#
 nstars = len(stars) # Total number of stars (404)
 current_index = [0]  # so we can modify it inside callbacks
 
 # Set up figure and axes
 cutout_size = stars[0].data.shape[0] # The width & height of the cutout
-fig = plt.figure(figsize=(10, 3)) # Creates a figure with size 10x3 inches
+fig = plt.figure(figsize=(15, 5)) # Creates a figure with size 10x3 inches
 gs = fig.add_gridspec(1, 5, width_ratios=[1.5, 1, 1, 0.5, 0.5]) # Defines a 1 row, 5 column grid layout 
+
+
+
 # <width_ratios> sets the relative width of each column
 
 # Positions plots and buttons in the grid
@@ -137,6 +167,11 @@ ax_x = fig.add_subplot(gs[1])
 ax_y = fig.add_subplot(gs[2])
 ax_prev = fig.add_subplot(gs[3])
 ax_next = fig.add_subplot(gs[4])
+
+
+ax_img.set_aspect('equal')  # Keep cutout square
+ax_x.set_aspect('auto')     # Allow auto for brightness plots
+ax_y.set_aspect('auto')
 
 # Turns the last 2 plots into pressable buttons
 btn_prev = Button(ax_prev, 'Previous')
@@ -156,10 +191,40 @@ def update_plot(index):
 
     # Gets the star data and normalizes it for better visualization
     star_data = stars[index].data
-    norm = simple_norm(star_data, 'log', percent=99.0)
+    
+    # Gets the star position from the stars table
+    center_x = stars_tbl['x'][index] 
+    center_y = stars_tbl['y'][index]
+
+    # 2 ways to normalize the data
+    
+    # 1. Rescaling each cut independently:
+    #   - One cutout might have a bright star nearby, skewing the scaling
+    # Resultig in each cutout having a different background 
+    #norm = simple_norm(star_data, 'log', percent=99.0)
+
+    # 2. Having a set minimum and maximum pixel value for all cutouts:
+    #   - This is better for comparing cutouts
+    # Lower vmax = more contrast in faint regions
+    # Higher vmax = preserves detail in bright regions, but can flatten dimmer areas
+    # star_data.max() = just uses the brightest pixel in the cutout
+    norm = ImageNormalize(vmin=-5, vmax=3000, stretch=LogStretch())
+    
+
+
+    # Define extent: [x_min, x_max, y_min, y_max] in original coordinates
+    hsize = (star_data.shape[0] - 1) / 2  # Half the size of the cutout
+    
+    # The extent parameter takes a list or tuple of four values: [left, right, bottom, top].
+    # These values define the x and y coordinates of the image's corners. Comment or 
+    # delete the <extent=extent> parameter to have the image plotted in pixel coordinates
+    extent = [
+        center_x - hsize, center_x + hsize,  # x limits in original coordinates
+        center_y - hsize, center_y + hsize   # y limits in original coordinates
+    ]
 
     # Adds the star cutout plot on the first axis/subplot
-    ax_img.imshow(star_data, norm=norm, origin='lower', cmap='viridis')
+    ax_img.imshow(star_data, norm=norm, origin='lower', cmap='viridis', extent=extent)
     ax_img.set_title(f'Star {index + 1} of {nstars}')
 
     # .sum() method is a NumPy array method that computes the sum of the array's elements along a specified axis.
@@ -208,6 +273,8 @@ plt.show()
 
 
 
+
+
 #--------------------------------#
 #---Building the ePSF Function---#
 #--------------------------------#
@@ -227,9 +294,6 @@ plt.imshow(epsf.data, norm=norm, origin='lower', cmap='viridis')
 plt.colorbar()
 plt.savefig('figures/epsf.png', dpi=300, bbox_inches='tight') # saves the figure
 plt.show()
-
-
-
 
 
 
