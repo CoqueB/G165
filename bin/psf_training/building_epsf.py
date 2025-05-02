@@ -3,13 +3,15 @@
     1. Good sample of high S/N isolated stars
     2. Have a large sample
 
+    To Do:
+        Pixelize and un-interpolate the brightness graphs
 """
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 
 from astropy.visualization import simple_norm
-from astropy.visualization import ImageNormalize, LogStretch
+from astropy.visualization import ImageNormalize, LogStretch, LinearStretch
 
 from photutils.datasets import (load_simulated_hst_star_image,
                                 make_noise_image)
@@ -118,23 +120,22 @@ images = []
 # Flattens the 2D array of axes into a 1D array of 25 plots, 
 # allowing indexing of axes with ax[i] in a loop instead of ax[row][col]
 ax = ax.ravel() 
-fixed_vmin = -5
+fixed_vmin = 20
 
 
 for i in range(nrows * ncols):
     
-    """
     # 1) Stretch the cutout for better visualization
     norm = simple_norm(stars[i], 'log', percent=99.0) # applies log stretch to the cutout
     # Plots the i-th star cutout (2D array) into subplot ax[i] stores each cutout in <im>
     im = ax[i].imshow(stars[i], norm=norm, origin='lower', cmap='viridis') 
-    """
+    
 
     # 2) Set a fixed vmin and vmax for all cutouts, uncomment for this version
-    star_data = stars[i].data  # EPSFStar object, so get the .data
-    vmax = star_data.max()  # Use brightest pixel for this cutout
-    im = ax[i].imshow(star_data, origin='lower', cmap='viridis',
-                      vmin=fixed_vmin, vmax=vmax)
+    #star_data = stars[i].data  # EPSFStar object, so get the .data
+    #vmax = star_data.max() # Use brightest pixel for this cutout 
+    #im = ax[i].imshow(star_data, origin='lower', cmap='viridis',
+    #                  vmin=fixed_vmin, vmax=vmax)
     images.append(im)
 
 fig.colorbar(images[0], ax=ax.ravel().tolist(), 
@@ -201,14 +202,14 @@ def update_plot(index):
     # 1. Rescaling each cut independently:
     #   - One cutout might have a bright star nearby, skewing the scaling
     # Resultig in each cutout having a different background 
-    #norm = simple_norm(star_data, 'log', percent=99.0)
+    #norm = simple_norm(star_data, 'linear', percent=99.0)
 
     # 2. Having a set minimum and maximum pixel value for all cutouts:
     #   - This is better for comparing cutouts
     # Lower vmax = more contrast in faint regions
     # Higher vmax = preserves detail in bright regions, but can flatten dimmer areas
     # star_data.max() = just uses the brightest pixel in the cutout
-    norm = ImageNormalize(vmin=-5, vmax=3000, stretch=LogStretch())
+    norm = ImageNormalize(vmin=0, vmax=3000, stretch=LogStretch())
     
 
 
@@ -232,13 +233,13 @@ def update_plot(index):
     row_sum = star_data.sum(axis=1) # Brightness summed horizontally over each y
 
     # Plots the sum column brightnesses against x
-    ax_x.plot(range(star_data.shape[1]), col_sum, color='tab:blue')
+    ax_x.step(range(star_data.shape[1]), col_sum, where='mid', color='tab:blue')
     ax_x.set_title('Brightness vs X')
     ax_x.set_xlabel('X Position')
     ax_x.set_ylabel('Sum')
 
     # Plots the sum row brightnesses against y
-    ax_y.plot(row_sum, range(star_data.shape[0]), color='tab:orange')
+    ax_y.step(row_sum, range(star_data.shape[0]), where='mid', color='tab:orange')
     ax_y.set_title('Brightness vs Y')
     ax_y.set_ylabel('Y Position')
     ax_y.set_xlabel('Sum')
