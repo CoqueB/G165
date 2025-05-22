@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# ignore the <data> folder with the images inside
+data/
+
 # C extensions
 *.so
 

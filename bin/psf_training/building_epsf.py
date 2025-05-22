@@ -39,7 +39,7 @@ data += make_noise_image(data.shape, distribution='gaussian', mean=10.0,
                          stddev=5.0, seed=123)
 
 # simple_norm(data, <stretch function>, percent= <clips the data>) for better visualization
-norm = simple_norm(data, 'sqrt', percent=99.0)
+norm = simple_norm(data, 'sqrt', percent=95.0)
 
 # Plotting & saving the image
 plt.imshow(data, norm=norm, origin='lower', cmap='viridis')
@@ -126,7 +126,7 @@ fixed_vmin = 20
 for i in range(nrows * ncols):
     
     # 1) Stretch the cutout for better visualization
-    norm = simple_norm(stars[i], 'log', percent=99.0) # applies log stretch to the cutout
+    norm = simple_norm(stars[i], 'log', percent=95.0) # applies log stretch to the cutout
     # Plots the i-th star cutout (2D array) into subplot ax[i] stores each cutout in <im>
     im = ax[i].imshow(stars[i], norm=norm, origin='lower', cmap='viridis') 
     
@@ -290,7 +290,7 @@ epsf_builder = EPSFBuilder(oversampling=4, maxiters=3,
 # <fitted_stars>: the fitted star cutouts, a list of 2D arrays 
 epsf, fitted_stars = epsf_builder(stars) 
 
-norm = simple_norm(epsf.data, 'log', percent=99.0)
+norm = simple_norm(epsf.data, 'log', percent=95.0)
 plt.imshow(epsf.data, norm=norm, origin='lower', cmap='viridis')
 plt.colorbar()
 plt.savefig('figures/epsf.png', dpi=300, bbox_inches='tight') # saves the figure
@@ -302,7 +302,7 @@ plt.show()
 fitted_star = fitted_stars[0]  # Change the index to plot a different fitted star
 
 # Normalize and plot the selected fitted star
-norm = simple_norm(fitted_star, 'log', percent=99.0)
+norm = simple_norm(fitted_star, 'log', percent=95.0)
 plt.imshow(fitted_star, norm=norm, origin='lower', cmap='viridis')
 plt.colorbar()
 plt.title("Fitted Star 1")  # Optional: add a title to the plot
