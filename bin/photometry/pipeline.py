@@ -28,7 +28,7 @@ image_header = hdu.header
 data = hdu.data.astype(float)
 hdu.close()
 
-image_data = data / image_header['PHOTMJSR'] #Converts the image from surface brightness to flux
+image_data = data * image_header['PHOTMJSR'] #Converts the image from surface brightness to flux
 
 # Estimating and subrtacting background:
 # --------------------------------------
@@ -123,7 +123,7 @@ print(phot_table)
 fluxes = np.array(phot_table['bkg_subtracted_flux'])
 valid = fluxes > 0
 ab_mags = MaskedColumn(np.zeros_like(fluxes), mask=~valid)
-ab_mags[valid] = -2.5 * np.log10(fluxes[valid]) -6.1  # converts to AB mags, not normal Vega mags
+ab_mags[valid] = -2.5 * np.log10(fluxes[valid]*image_header['PIXAR_SR']) -6.1  # converts to AB mags, not normal Vega mags
 phot_table['ab_mag'] = ab_mags
 
 
