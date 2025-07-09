@@ -1,7 +1,10 @@
+# performing aperture photmetry:
+# ------------------------------
+
+
 from photutils.aperture import CircularAperture, aperture_photometry, CircularAnnulus, ApertureStats
 import numpy as np
 
-"""
 
 # creating an aperture arround a point
 
@@ -29,18 +32,21 @@ star_flux = phot_table["aperture_sum"] - total_bkg_flux
 # to caclulate m use : m= -2.5*np.log10(star_flux)
 # plot star_flux vs XX of spitzer catalouge
 
-"""
 
 
 
 
-#trying to open a fits image
+# Opening a fits image:
+# ---------------------
 
 from astropy.io import fits 
 
-fitsfile = fits.open("./data/mosaic_plckg165_nircam_f090w_30mas_20230403_drz.fits")
+#Here a file has to be imputed
+fitsfile = fits.open("<path of the file>")
 
+print(fitsfile[0].header)
 
+"""
 image_data = fitsfile[0].data
 
 
@@ -53,3 +59,7 @@ plt.figure()
 plt.imshow(image_data, origin = "lower")
 plt.colorbar()
 plt.show()
+
+"""
+
+fitsfile.close()
