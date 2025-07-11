@@ -17,7 +17,9 @@ from scipy.optimize import least_squares
 import numpy as np
 from photutils.background import Background2D, MedianBackground
 from photutils.segmentation import detect_threshold, detect_sources
+from photutils.segmentation import deblend_sources
 from photutils.segmentation import SourceCatalog
+from photutils.segmentation import SegmentationImage
 from photutils.segmentation import source_properties
 from photutils.aperture import EllipticalAperture, aperture_photometry
 from photutils.aperture import EllipticalAnnulus
@@ -50,15 +52,28 @@ image_sub = image_data - bkg.background
 threshold = detect_threshold(image_sub, snr=3.0)  # 3-sigma threshold
 segm = detect_sources(image_sub, threshold, npixels=5)
 
+# Deblending sources
+# nlevels controls how finely peaks are separated
+# contrast controls how significant a peak must be to be kept
 
-# Measuring source properties:
-# -----------------------------
+segm_deblended = deblend_sources(image_sub, segm, npixels=5, nlevels=32, contrast=0.001)
 
-catalog = SourceCatalog(image_sub, segm)
+# Printing out the Deblended Segmentation Map:
+# --------------------------------------------
+
+plt.imshow(segm_deblended.data, cmap='tab20b', origin='lower')
+plt.title('Deblended Segmentation Map')
+plt.colorbar(label='Source Label')
+plt.show()
+
+# Measuring and printing source properties:
+# -----------------------------------------
+
+catalog = SourceCatalog(image_sub, segm_deblended)
 tbl = catalog.to_table()
 
 """
-props = source_properties(image_sub, segm)
+props = source_properties(image_sub, segm_deblended)
 tbl = props.to_table()
 """
 
@@ -171,7 +186,9 @@ for i, row in enumerate(tbl):
     b = row.semiminor_axis_sigma.value
     theta = row.orientation.value
 
-    # Define a cutout around the source
+    # Define the cutout around the sources:
+    # -------------------------------------
+
     cutout_size = int(6 * a)  
     try:
         cutout = Cutout2D(image_sub, (xcen, ycen), (cutout_size, cutout_size))
@@ -179,7 +196,9 @@ for i, row in enumerate(tbl):
         print(f"Skipping source {i} (cutout failed): {e}")
         continue
 
-    # Create initial EllipseGeometry
+    # Createing the initial EllipseGeometry:
+    # --------------------------------------
+
     try:
         geom = EllipseGeometry(x0=cutout.shape[1] // 2,
                                y0=cutout.shape[0] // 2,
@@ -207,7 +226,9 @@ for i, row in enumerate(tbl):
         print(f"  Failed isophote fitting for source {i}: {e}")
         continue
     
-    # Compute total isophotal flux
+    # Computing the total isophotal flux:
+    # -----------------------------------
+
     try:
         model_image = build_ellipse_model(cutout.data.shape, isolist)
         iso_flux = model_image.sum()
@@ -218,11 +239,13 @@ for i, row in enumerate(tbl):
 
 
 
-# Adding the isophotal fluxes to phot_table
+# Adding the isophotal fluxes to phot_table:
+# ------------------------------------------
 
 phot_table['iso_fluxes'] = isophotal_fluxes
 
-# Converting the isophotal fluxes into AB magnitudes 
+# Converting the isophotal fluxes into AB magnitudes:
+# ---------------------------------------------------
 
 iso_fluxes = np.array(isophotal_fluxes)
 valid_iso = iso_fluxes > 0
@@ -234,8 +257,14 @@ ab_iso_mags[valid_iso] = -2.5 * np.log10(iso_fluxes[valid_iso] * image_header['P
 phot_table['ab_iso_mag'] = ab_iso_mags
 
 
+
 # PSF Photometry:
 # ===============
+
+
+# Selecting stars for and building the EPSF:
+# ------------------------------------------
+
 
 # Select a few bright, isolated from your source table  --> Must they be stars?
 # For simplicity, here we manually filter small, round sources
@@ -254,7 +283,8 @@ epsf_builder = EPSFBuilder(oversampling=4)  # oversampling=4 is the resolution o
 epsf, fitted_stars = epsf_builder.build_epsf(star_cutouts)  # builds a model of the PSF by stacking and averaging the star images
 psf_array = epsf.data       # Final PSF
 
-# Creating the Sersic model
+# Creating the Sersic model:
+# --------------------------
 
 sersic_params = []
 
@@ -316,6 +346,8 @@ phot_table['sersic_y0'] = Column(params_arr[:, 4] + tbl['ycentroid'] - cutout_si
 phot_table['sersic_ellip'] = Column(params_arr[:, 5])
 phot_table['sersic_theta'] = Column(params_arr[:, 6])
 
+# Calculating the flux:
+# ---------------------
 
 sersic_flux = []
 
@@ -334,7 +366,9 @@ for i, row in phot_table.iterrows():
 
 phot_table['sersic_flux'] = sersic_flux
 
-# Convert to AB mag
+# Converting to AB magnitudes:
+# ----------------------------
+
 fluxes = np.array(sersic_flux)
 valid = fluxes > 0
 ab_sersic_mags = MaskedColumn(np.zeros_like(fluxes), mask=~valid)
