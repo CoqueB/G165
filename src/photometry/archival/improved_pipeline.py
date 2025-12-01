@@ -21,10 +21,10 @@ from astropy.modeling.models import Sersic2D
 from astropy.nddata import Cutout2D
 from astropy.table import Column
 from astropy.convolution import convolve_fft
+from astropy.convolution import Gaussian2DKernel
 
 from photutils.background import Background2D, MedianBackground
 from photutils.utils import calc_total_error
-from photutils.datasets import make_2dgaussian_kernel
 from photutils.segmentation import SourceFinder, SourceCatalog
 from photutils.psf import extract_stars, EPSFBuilder
 
@@ -33,11 +33,12 @@ from photutils.psf import extract_stars, EPSFBuilder
 # Loading FITS Image:
 # -------------------
 
-fits_file = 'image.fits'  # Replace with the actual FITS file path
-hdu = fits.open(fits_file)[0]
+fits_file = "/mnt/c/Users/Coque/Desktop/astronomy_research/G165/cutouts/cutout1.fits"  # Replace with the actual FITS file path
+hdul = fits.open(fits_file)       # This is the HDUList object
+hdu = hdul[0]                     # This is the PrimaryHDU
 image_header = hdu.header
 data = hdu.data.astype(float)
-hdu.close()
+hdul.close()                      # Close the HDUList, not the PrimaryHDU
 
 image_data = data * image_header['PHOTMJSR'] #Converts the image from surface brightness to flux in MJy
 
@@ -56,16 +57,16 @@ error = calc_total_error(data, bkg.background_rms, effective_gain=1.0)
 # Convolving image with Gaussian kernel:
 # --------------------------------------
 
-kernel = make_2dgaussian_kernel(stddev=3.0)  # ** detection filter of 3.0 recommended for galaxies
+kernel = kernel = Gaussian2DKernel(x_stddev=3.0)  # ** detection filter of 3.0 recommended for galaxies
 threshold = 3.0 * bkg.background_rms         # 3-sigma threshold
 
 # Using SourceFinder():
 # ---------------------
 
-finder = SourceFinder(kernel=kernel, npixels=5, deblend=True,
-                      nlevels=32, contrast=0.001)
+finder = SourceFinder(npixels=5, deblend=True, nlevels=32, contrast=0.001)
+smoothed_image = convolve_fft(image_sub, kernel)
+segm = finder(smoothed_image, threshold)
 
-segm = finder(image_sub, threshold)
 
 
 # Saving egmentation map to a FITS file:
@@ -91,7 +92,7 @@ kron_flux = tbl['kron_flux']
 valid = kron_flux > 0
 
 ab_kron_mag = MaskedColumn(np.zeros_like(kron_flux), mask=~valid)
-ab_kron_mag[valid] = -2.5 * np.log10(kron_flux[valid] * image_header['PIXAR_SR']) - 6.1
+ab_kron_mag[valid] = -2.5 * np.log10(kron_flux[valid] * image_header['PIXAR_SR']) - 6.10
 tbl['ab_kron_mag'] = ab_kron_mag
 
 # Visualizing segmentation map:
@@ -114,8 +115,17 @@ plt.show()
 # Select a few bright, isolated from your source table
 # For simplicity, here we manually filter small, round sources
 
+
+
+a = tbl['semimajor_sigma']
+b = tbl['semiminor_sigma']
+ellipticity = 1 - (b / a)
+tbl['ellipticity'] = ellipticity
+
+
 bright_stars = tbl[(tbl['kron_flux'] > 1e-6) & (tbl['ellipticity'] < 0.2)]  # should a size limit be imposed?
-stars_tbl = bright_stars[['xcentroid', 'ycentroid']]
+stars_tbl = bright_stars[['xcentroid', 'ycentroid']].copy()
+stars_tbl.rename_columns(['xcentroid', 'ycentroid'], ['x', 'y'])
 
 # Creating cutouts of the sourses selected for EPSF:
 # --------------------------------------------------
@@ -138,13 +148,13 @@ sersic_flux = []
 
 for i, row in enumerate(tbl):
     x0, y0 = row['xcentroid'], row['ycentroid']
-    a = row['semimajor_axis_sigma']
-    b = row['semiminor_axis_sigma']
+    a = row['semimajor_sigma']
+    b = row['semiminor_sigma']
     theta = row['orientation']
 
     # Making cutouts for all the galaxies 
 
-    cutout_size = int(6 * a) 
+    cutout_size = int((6 * a).value) 
     try:
         cutout = Cutout2D(image_sub, (x0, y0), (cutout_size, cutout_size))
     except Exception as e:
@@ -159,9 +169,16 @@ for i, row in enumerate(tbl):
     x_cen = cutout.shape[1] // 2
     y_cen = cutout.shape[0] // 2
 
+    # Remove units before fitting
+    amp = cutout.data.max()
+    r_eff = a.to_value('pix')
+    ellip = 1 - b.to_value('pix') / a.to_value('pix')
+    theta_val = theta.to_value('rad')
+
 
     # Initial parameter guess: [amplitude, r_eff, n, x_0, y_0, ellip, theta]
-    p0 = [cutout.data.max(), a, 2.0, x_cen, y_cen, 1 - b/a, theta]
+    p0 = [amp, r_eff, 2.0, x_cen, y_cen, ellip, theta_val]
+
 
 
     # This function tells the fitting algorithm how to measure error between the observed

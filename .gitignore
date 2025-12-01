@@ -176,3 +176,11 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 figures/
+
+# Results and Data
+
+aperture_phot_tests/
+cutouts/
+original_small_cutouts/
+output/
+
