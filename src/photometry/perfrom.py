@@ -46,10 +46,6 @@ class Photometry():
                 pos = getattr(kron_ap, "positions", None)
                 if pos is not None:
                     arr = np.asarray(pos)
-                    # common cases:
-                    # arr.shape == (2,)        -> [x, y]
-                    # arr.shape == (1,2) or (N,2) -> [[x, y], ...]
-                    # arr.size == 1            -> single scalar (treat as x)
                     if arr.ndim == 1 and arr.size >= 2:
                         xk, yk = float(arr[0]), float(arr[1])
                     elif arr.ndim >= 2 and arr.shape[-1] >= 2:
@@ -69,7 +65,7 @@ class Photometry():
                     theta = float(theta.to(u.deg).value) % 360.0
                 else:
                     theta = 0.0
-
+                    
                 if None not in (xk, yk, a, b):
                     f.write(f"ellipse({xk:.3f},{yk:.3f},{a:.3f},{b:.3f},{theta:.3f}) # color=violet \n")
                 elif None not in (xk, yk, a):
@@ -102,18 +98,13 @@ class Photometry():
         plt.colorbar(label='Intensity')
         plt.savefig(os.path.join(output_dir, 'aperture_overlay.png'), dpi=300, bbox_inches='tight')
 
-    def save_for_plots(self, output_dir, catalog, ):
-
-
     def printing_storing(self, phot_table, output_dir):
         print("Photometry complete. Results:")
         print(phot_table)
         phot_table.write(os.path.join(output_dir, 'photometry_results.csv'),format='csv', overwrite=True)
         print("Photometry results saved to 'photometry_results.csv")
 
-Photometry("/mnt/c/Users/Coque/Desktop/astronomy_research/G165/cutouts/cutout_f444.fits", '/mnt/c/users/Coque/Desktop/astronomy_research/G165/cutouts/cutout_f444_wht.fits')
-
-
+Photometry("/mnt/c/Users/Coque/Desktop/astronomy_research/G165/cutouts/cutout_f115.fits", '/mnt/c/users/Coque/Desktop/astronomy_research/G165/cutouts/cutout_f115_wht.fits')
 
 
 
