@@ -1,9 +1,12 @@
 
 import os
 from astropy.io import fits
+from astropy.wcs import WCS
+from astropy.coordinates import SkyCoord
 from astropy.table import MaskedColumn
 from astropy.table import Table
 import numpy as np
+import astropy.units as u
 from astropy.units import Quantity
 from astropy.table import join
 from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
@@ -16,10 +19,11 @@ def load_image(fits_file):
     hdul = fits.open(fits_file)
     hdu = hdul[0]
     image_header = hdu.header
+    wcs = WCS(image_header)
     data = hdu.data.astype(float)
     hdul.close()
     image_data = data * image_header['PHOTMJSR']  # Convert to MJy
-    return image_header, image_data
+    return image_header, image_data, wcs
 
 def subtract_background(image_data):
     bkg = Background2D(image_data, (50, 50), filter_size=(3, 3)) 
@@ -61,7 +65,13 @@ def source_detection(bkg, weight_data, image_sub, image_header, output_dir):
 def extract_source_properties(image_sub, segm, data_rms ):
     catalog = SourceCatalog(image_sub, segm, error=data_rms)
     tbl = catalog.to_table(columns=['label', 'xcentroid', 'ycentroid','semimajor_sigma',
-     'semiminor_sigma', 'orientation','kron_flux'])
+     'semiminor_sigma', 'orientation','kron_flux', 'kron_fluxerr'])
+
+    mag, magerr = fluxes2mags(tbl['kron_flux'] * u.nJy, tbl['kron_fluxerr'] * u.nJy)
+    tbl['ab_kron_mag'] = mag
+    tbl['ab_kron_mag_err'] = magerr
+
+
     tbl.rename_column('label', 'id')
     return tbl, catalog
 
@@ -69,13 +79,16 @@ def strip_quantity(x):
     return x.value if isinstance(x, Quantity) else x
 
 def flux_to_ab_mag(flux, pixar_sr, zeropoint=6.1):
+
+    # Not used anymore, replaced by fluxes2mags
+
     flux = np.array(flux)
     valid = flux > 0
     mags = MaskedColumn(np.zeros_like(flux), mask=~valid)
     mags[valid] = -2.5 * np.log10(flux[valid] * pixar_sr) - zeropoint
     return mags
 
-def my_aperture_photometry(tbl, image_sub, image_header):
+def my_aperture_photometry(tbl, image_sub, wcs, data_rms):
 
     # defining annuli and appertures
     positions = np.transpose([tbl['xcentroid'].data, tbl['ycentroid'].data])
@@ -83,30 +96,73 @@ def my_aperture_photometry(tbl, image_sub, image_header):
     annulus_apertures = CircularAnnulus(positions, r_in=14.0, r_out=21.0)
 
     # Performing aperture photometry:
-    phot_table = aperture_photometry(image_sub, apertures)
-    annulus_table = aperture_photometry(image_sub, annulus_apertures)
+    phot_table = aperture_photometry(image_sub, apertures, error = data_rms)
+    annulus_table = aperture_photometry(image_sub, annulus_apertures,error = data_rms)
 
     # assigning IDs to each source
     phot_table['id'] = np.arange(len(phot_table))
     annulus_table['id'] = np.arange(len(annulus_table))
 
-    # Perfoming background and subtraction and calculating magnitudes:
+    # converting to sky coordinates
+    ra, dec = wcs.pixel_to_world_values( tbl['xcentroid'].data, tbl['ycentroid'].data )
+
+    phot_table['ra'] = ra
+    phot_table['dec'] = dec
+
+    # Perfoming background and subtraction:
     bkg_mean = annulus_table['aperture_sum'] / annulus_apertures.area
     bkg_sub_flux = phot_table['aperture_sum'] - (bkg_mean * apertures.area)
+
+    # background subtraction error propagation 
+
+    bkg_var_perpix = ( annulus_table['aperture_sum_err']**2 / annulus_apertures.area**2)  # variance of background mean per pixel
+    bkg_var_ap = bkg_var_perpix * apertures.area**2                                       # background variance inside source aperture
+    flux_err = np.sqrt( phot_table['aperture_sum_err']**2 + bkg_var_ap )                  # total flux error
+    phot_table['bkg_subtracted_flux_err'] = flux_err
+
+    # calculating magnitudes
+    phot_table['bkg_mean'] = bkg_mean
+    phot_table['bkg_subtracted_flux'] = bkg_sub_flux
+    
+    phot_table['ab_aperture_mag'], phot_table['ab_aperture_mag_err'] = fluxes2mags(phot_table['bkg_subtracted_flux'] * u.nJy, phot_table['bkg_subtracted_flux_err'] * u.nJy)
+
+
+    """
+    # calculating magnitudes
     phot_table['bkg_mean'] = bkg_mean
     phot_table['bkg_subtracted_flux'] = bkg_sub_flux
     phot_table['ab_aperture_mag'] = flux_to_ab_mag(phot_table['bkg_subtracted_flux'], image_header['PIXAR_SR'])
 
+    # writing aperture error in table
+    phot_table['ab_aperture_mag_err'] = fluxes2mags(phot_table['bkg_subtracted_flux'], phot_table['bkg_subtracted_flux_err'])
+    """
+
     return phot_table, apertures, annulus_apertures
 
-def kron_photometry(tbl, image_header, phot_table):
+def fluxes2mags(flux, fluxerr):
+    nondet = flux < 0  # Non-detection if flux is negative
+    unobs = (fluxerr <= 0) + (fluxerr == np.inf)  # Unobserved if flux uncertainty is negative or infinity
 
-    # Calculating the AB Magnitudes of the Kron photometry
-    tbl['ab_kron_mag'] = flux_to_ab_mag(tbl['kron_flux'], image_header['PIXAR_SR'])
+    mag = flux.to(u.ABmag)
+    magupperlimit = fluxerr.to(u.ABmag)  # 1-sigma upper limit if flux=0
+
+    mag = np.where(nondet, 99 * u.ABmag, mag)
+    mag = np.where(unobs, -99 * u.ABmag, mag)
+
+    magerr = 2.5 * np.log10(1 + fluxerr / flux)
+    magerr = magerr.value * u.ABmag
+
+    magerr = np.where(nondet, magupperlimit, magerr)
+    magerr = np.where(unobs, 0 * u.ABmag, magerr)
+
+    return mag, magerr
+
+
+def kron_photometry(tbl, phot_table):
 
     # Adding Kron photometry to phot_table:
     tbl['id'] = np.arange(len(tbl))
-    kron_info = tbl['id', 'kron_flux', 'ab_kron_mag']
+    kron_info = tbl['id', 'kron_flux', 'ab_kron_mag', 'ab_kron_mag_err']
     phot_table = join(phot_table, kron_info, keys='id', join_type='left')
     
     return phot_table

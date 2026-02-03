@@ -7,7 +7,7 @@ import os
 # Loading FITS Image:
 # -------------------
 
-fits_file = '/mnt/c/users/Coque/Downloads/mosaic_plckg165_nircam_f444w_30mas_20230403_drz.fits'  # Replace with the actual FITS file path for LINUX
+fits_file = '/mnt/c/users/Coque/Downloads/mosaic_plckg165_nircam_f115w_30mas_20230403_wht.fits'  # Replace with the actual FITS file path for LINUX
 hdul = fits.open(fits_file)       # This is the HDUList object
 hdu = hdul[0]                     # This is the PrimaryHDU
 image_header = hdu.header
@@ -35,7 +35,7 @@ os.makedirs(output_dir, exist_ok=True)
 
 # Define positions (x, y)
 positions = {
-    "cutout_f444": (3 * coordinates[1] // 4, coordinates[0] // 4),  # lower right
+    "cutout_f115_wht": (3 * coordinates[1] // 4, coordinates[0] // 4),  # lower right
 }
 
 for name, pos in positions.items():

@@ -14,30 +14,29 @@ from functions import extract_source_properties
 from functions import my_aperture_photometry
 from functions import kron_photometry
 
-
 class Photometry():
     def __init__(self, fits_file, wht_file):
         self.fits_file = fits_file
         self.wht_file = wht_file
-        self.image_header, self.image_data = load_image(self.fits_file)
+        self.image_header, self.image_data, wcs = load_image(self.fits_file)
         self.image_sub, self.bkg = subtract_background(self.image_data)
         self.weight_data = load_weightfile(self.wht_file)
         self.data_rms, self.background_rms = calculate_uncertainty(self.image_header, self.image_data, self.weight_data, self.bkg)
         self.output_dir = make_outputdir()
         self.segm = source_detection(self.bkg, self.weight_data, self.image_sub, self.image_header, self.output_dir)
         self.tbl, self.catalog = extract_source_properties(self.image_sub, self.segm, self.data_rms)
-        self.phot_table, self.apertures, self.annulus_apertures = my_aperture_photometry(self.tbl, self.image_sub, self.image_header)
-        self.phot_table = kron_photometry(self.tbl, self.image_header, self.phot_table)
+        self.phot_table, self.apertures, self.annulus_apertures = my_aperture_photometry(self.tbl, self.image_sub, wcs, self.data_rms)
+        self.phot_table = kron_photometry(self.tbl, self.phot_table)
 
-        self.create_regions_file(self.phot_table, self.output_dir, self.catalog)
-        self.plotting_images(self.image_sub, self.apertures, self.annulus_apertures, self.output_dir, self.catalog)
+        #self.create_regions_file(self.phot_table, self.output_dir, self.catalog)
+        #self.plotting_images(self.image_sub, self.apertures, self.annulus_apertures, self.output_dir, self.catalog)
         self.printing_storing(self.phot_table, self.output_dir)
 
     def create_regions_file(self, phot_table, output_dir, catalog):
         region_filename = os.path.join(output_dir, "sources.reg")
         with open(region_filename, "w") as f:
             for x, y in zip(phot_table['xcenter'], phot_table['ycenter']): 
-                f.write(f"circle({x:.3f},{y:.3f},{14}) # color=cyan\n")
+                f.write(f"circle({x:.3f},{y:.3f},{14}) # color=cyan width=2\n")
             
             for src in catalog:
                 kron_ap = getattr(src, "kron_aperture", None)
@@ -67,11 +66,11 @@ class Photometry():
                     theta = 0.0
                     
                 if None not in (xk, yk, a, b):
-                    f.write(f"ellipse({xk:.3f},{yk:.3f},{a:.3f},{b:.3f},{theta:.3f}) # color=violet \n")
+                    f.write(f"ellipse({xk:.3f},{yk:.3f},{a:.3f},{b:.3f},{theta:.3f}) # color=violet width=2\n")
                 elif None not in (xk, yk, a):
-                    f.write(f"circle({xk:.3f},{yk:.3f},{a:.3f}) # color=violet \n")
+                    f.write(f"circle({xk:.3f},{yk:.3f},{a:.3f}) # color=violet width=2\n")
                 elif None not in (xk, yk):
-                    f.write(f"circle({xk:.3f},{yk:.3f},14) # color=violet \n")
+                    f.write(f"circle({xk:.3f},{yk:.3f},14) # color=violet width=2\n")
 
         print(f"DS9 region file saved to: {region_filename}")
     
@@ -101,11 +100,9 @@ class Photometry():
     def printing_storing(self, phot_table, output_dir):
         print("Photometry complete. Results:")
         print(phot_table)
-        phot_table.write(os.path.join(output_dir, 'photometry_results.csv'),format='csv', overwrite=True)
-        print("Photometry results saved to 'photometry_results.csv")
+        phot_table.write(os.path.join(output_dir, 'photometry_results_small_cutout.csv'),format='csv', overwrite=True)
+        print("Photometry results saved to 'photometry_results_small_cutout.csv")
 
-Photometry("/mnt/c/Users/Coque/Desktop/astronomy_research/G165/cutouts/cutout_f115.fits", '/mnt/c/users/Coque/Desktop/astronomy_research/G165/cutouts/cutout_f115_wht.fits')
+# Photometry("/mnt/c/Users/Coque/Downloads/mosaic_plckg165_nircam_f444w_30mas_20230403_drz.fits", '/mnt/c/Users/Coque/Downloads/mosaic_plckg165_nircam_f444w_30mas_20230403_wht.fits')
 
-
-
-
+Photometry("./original_small_cutouts/cutout1.fits", './original_small_cutouts/cutout1_wht.fits')

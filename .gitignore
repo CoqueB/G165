@@ -183,4 +183,17 @@ aperture_phot_tests/
 cutouts/
 original_small_cutouts/
 output/
+output_large_cutouts/
+graphs_output/
 
+# Old pipeline
+
+improved_aperture_photometry.py
+
+# Massimo's Catalouge
+
+phot_massimo_iso.cat
+
+# still worning on this for now
+
+anomalies.py
