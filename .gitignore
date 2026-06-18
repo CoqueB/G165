@@ -180,20 +180,33 @@ figures/
 # Results and Data
 
 aperture_phot_tests/
+codeastro/
+comparison_output/
 cutouts/
+old_output/
 original_small_cutouts/
 output/
-output_large_cutouts/
-graphs_output/
+
 
 # Old pipeline
-
 improved_aperture_photometry.py
+
+# Past work - unusefull for now
+anomalies.py
+foo.py
+compare_cutouts.py
+compare_multiband.py
+diagnostics
+detection_plots.py
 
 # Massimo's Catalouge
 
 phot_massimo_iso.cat
 
-# still worning on this for now
 
-anomalies.py
+
+# Don't know what this is:
+
+src/g165.egg-info/
+src/psf_training/
+

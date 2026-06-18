@@ -24,11 +24,11 @@ class Photometry():
         self.data_rms, self.background_rms = calculate_uncertainty(self.image_header, self.image_data, self.weight_data, self.bkg)
         self.output_dir = make_outputdir()
         self.segm = source_detection(self.bkg, self.weight_data, self.image_sub, self.image_header, self.output_dir)
-        self.tbl, self.catalog = extract_source_properties(self.image_sub, self.segm, self.data_rms)
-        self.phot_table, self.apertures, self.annulus_apertures = my_aperture_photometry(self.tbl, self.image_sub, wcs, self.data_rms)
+        self.tbl, self.catalog = extract_source_properties(self.image_sub, self.segm, self.data_rms, self.image_header)
+        self.phot_table, self.apertures, self.annulus_apertures = my_aperture_photometry(self.tbl, self.image_sub, wcs, self.data_rms, self.image_header)
         self.phot_table = kron_photometry(self.tbl, self.phot_table)
 
-        #self.create_regions_file(self.phot_table, self.output_dir, self.catalog)
+        self.create_regions_file(self.phot_table, self.output_dir, self.catalog)
         #self.plotting_images(self.image_sub, self.apertures, self.annulus_apertures, self.output_dir, self.catalog)
         self.printing_storing(self.phot_table, self.output_dir)
 
@@ -66,11 +66,11 @@ class Photometry():
                     theta = 0.0
                     
                 if None not in (xk, yk, a, b):
-                    f.write(f"ellipse({xk:.3f},{yk:.3f},{a:.3f},{b:.3f},{theta:.3f}) # color=violet width=2\n")
+                    f.write(f"ellipse({xk:.3f},{yk:.3f},{a:.3f},{b:.3f},{theta:.3f}) # color=violet width=1\n")
                 elif None not in (xk, yk, a):
-                    f.write(f"circle({xk:.3f},{yk:.3f},{a:.3f}) # color=violet width=2\n")
+                    f.write(f"circle({xk:.3f},{yk:.3f},{a:.3f}) # color=violet width=1\n")
                 elif None not in (xk, yk):
-                    f.write(f"circle({xk:.3f},{yk:.3f},14) # color=violet width=2\n")
+                    f.write(f"circle({xk:.3f},{yk:.3f},14) # color=violet width=1\n")
 
         print(f"DS9 region file saved to: {region_filename}")
     
@@ -81,9 +81,6 @@ class Photometry():
 
         for aperture in apertures:
             aperture.plot(color='cyan', lw=0.5)
-
-        #for annulus in annulus_apertures:
-            #annulus.plot(color='cyan', lw=0.5, alpha=0.7)
 
         for src in catalog:
             kron_ap = src.kron_aperture
@@ -100,9 +97,11 @@ class Photometry():
     def printing_storing(self, phot_table, output_dir):
         print("Photometry complete. Results:")
         print(phot_table)
-        phot_table.write(os.path.join(output_dir, 'photometry_results_small_cutout.csv'),format='csv', overwrite=True)
-        print("Photometry results saved to 'photometry_results_small_cutout.csv")
+        file_name = 'photometry_results_f200.csv'
+        phot_table.write(os.path.join(output_dir, file_name),format='csv', overwrite=True)
+        print("Photometry results saved to", file_name , "in", output_dir)
 
-# Photometry("/mnt/c/Users/Coque/Downloads/mosaic_plckg165_nircam_f444w_30mas_20230403_drz.fits", '/mnt/c/Users/Coque/Downloads/mosaic_plckg165_nircam_f444w_30mas_20230403_wht.fits')
+Photometry("/mnt/c/Users/Coque/Downloads/mosaic_plckg165_nircam_f200w_30mas_20230403_drz.fits", "/mnt/c/Users/Coque/Downloads/mosaic_plckg165_nircam_f200w_30mas_20230403_wht.fits")
 
-Photometry("./original_small_cutouts/cutout1.fits", './original_small_cutouts/cutout1_wht.fits')
+# Photometry("./original_small_cutouts/cutout_f200.fits", './original_small_cutouts/cutout_f200_wht.fits')
+

@@ -20,9 +20,10 @@ def load_image(fits_file):
     hdu = hdul[0]
     image_header = hdu.header
     wcs = WCS(image_header)
-    data = hdu.data.astype(float)
+    #data = hdu.data.astype(float)
+    data = hdu.data.astype(np.float32)
     hdul.close()
-    image_data = data * image_header['PHOTMJSR']  # Convert to MJy
+    image_data = data
     return image_header, image_data, wcs
 
 def subtract_background(image_data):
@@ -33,28 +34,63 @@ def subtract_background(image_data):
 def load_weightfile(wht_file):
     wht_hdul = fits.open(wht_file)
     wht_hdu = wht_hdul[0]
-    weight_data = wht_hdu.data.astype(float)
+    # weight_data = wht_hdu.data.astype(float)
+    weight_data = wht_hdu.data.astype(np.float32)
     wht_hdul.close()
     return weight_data
 
 def calculate_uncertainty(image_header, image_data, weight_data, bkg):
     exposure_time = image_header["XPOSURE"]
+    print("XPOSURE =", exposure_time)
     exposure_time_map = (exposure_time * bkg.background_rms_median**2 * weight_data )
-    background_rms = 1 / np.sqrt(weight_data)
+
+    #***
+    print("bkg.background_rms_median =", bkg.background_rms_median)
+    print("bkg.background_rms_median**2 =", bkg.background_rms_median**2)
+    #***
+
+    background_rms = np.zeros_like(weight_data, dtype=np.float32)
+    mask = weight_data > 1e-3
+    background_rms[mask] = 1 / np.sqrt(weight_data[mask])
+    # print(background_rms[background_rms > 0][:20])   
+
+    # ***
+    valid = weight_data > 0
+    print("'valid' means: weight_data > 0")
+    print("weight statistics")
+    print("  min valid =", np.nanmin(weight_data[valid]))
+    print("  median valid =", np.nanmedian(weight_data[valid]))
+    print("  max valid =", np.nanmax(weight_data[valid]))
+
+    print("background rms statistics")
+    print("  min =", np.nanmin(background_rms[valid]))
+    print("  median =", np.nanmedian(background_rms[valid]))
+    print("  max =", np.nanmax(background_rms[valid]))
+
+    print("gain map statistics")
+    print(f"  min    = {np.nanmin(exposure_time_map):.15e}")
+    print(f"  median = {np.nanmedian(exposure_time_map):.15e}")
+    print(f"  max    = {np.nanmax(exposure_time_map):.15e}")
+    # ***
+
+    print("bkg sub done")
+    #data_rms = calc_total_error( image_data, background_rms, exposure_time + 1e-8)
     data_rms = calc_total_error( image_data, background_rms, exposure_time_map + 1e-8 )
+    print(" calc error done")
     return data_rms, background_rms
 
 def make_outputdir():
-    output_dir = "/mnt/c/Users/Coque/Desktop/astronomy_research/G165/output/"
+    output_dir = os.path.expanduser("~/G165/output/")
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
 def source_detection(bkg, weight_data, image_sub, image_header, output_dir):
-    threshold = 3.8 * bkg.background_rms  
-    finder = SourceFinder(npixels=10, deblend=False, nlevels=16, contrast=0.1) #decrease n_levels and increase contrast
+    threshold = 3.6 * bkg.background_rms
+    print("starting")  
+    finder = SourceFinder(npixels=10, deblend=True, nlevels=32, contrast=0.1)
 
     # defining a mask uing the weightfile to ony detect sources in the image
-    mask = weight_data <= 0.001    #True in pixels that are to be ignored
+    mask = weight_data <= 0    #True in pixels that are to be ignored
     segm = finder(image_sub, threshold, mask=mask)
     segm_data = segm.data.astype(np.int32)
     segm_hdu = fits.PrimaryHDU(data=segm_data, header=image_header)
@@ -62,33 +98,107 @@ def source_detection(bkg, weight_data, image_sub, image_header, output_dir):
     print("Segmentation map saved as 'segmentation_map.fits'")
     return segm
 
-def extract_source_properties(image_sub, segm, data_rms ):
-    catalog = SourceCatalog(image_sub, segm, error=data_rms)
-    tbl = catalog.to_table(columns=['label', 'xcentroid', 'ycentroid','semimajor_sigma',
-     'semiminor_sigma', 'orientation','kron_flux', 'kron_fluxerr'])
+def calculate_gini(flux):
+    flux = np.asarray(flux).flatten()    
+    flux = flux[np.isfinite(flux)]   # Remove NaNs
 
-    mag, magerr = fluxes2mags(tbl['kron_flux'] * u.nJy, tbl['kron_fluxerr'] * u.nJy)
+    # Gini assumes positive values.
+    # For background-subtracted images, small negative values can occur.
+    flux = flux[flux > 0]
+    n = len(flux)
+    if n == 0:
+        return np.nan
+    flux = np.sort(flux)
+    mean_flux = np.nanmean(flux)
+    if mean_flux == 0:
+        return 0.0
+    index = np.arange(1, n + 1)
+    gini = np.sum((2 * index - n - 1) * flux) / (mean_flux * n * (n - 1))
+    return gini
+
+def extract_source_properties(image_sub, segm, data_rms, header):
+    catalog = SourceCatalog(image_sub, segm, error=data_rms)
+    tbl = catalog.to_table(columns=['label','xcentroid','ycentroid','semimajor_sigma',
+    'semiminor_sigma','orientation','segment_flux','segment_fluxerr','kron_flux','kron_fluxerr'])
+    
+
+    # Filtering for sources with SNR >= 3
+    # SNR = segment_flux / segment_fluxerr
+    # segment_flux sums all pixel values in the source 
+    # segment_fluxerr is the quadrature sum of errors over the same pixels
+
+    snr = tbl['segment_flux'] / tbl['segment_fluxerr']
+    tbl['snr'] = snr
+
+    # ***
+    print(f"segment_flux range:    {np.nanmin(tbl['segment_flux']):.4f} to {np.nanmax(tbl['segment_flux']):.4f}")
+    print(f"segment_fluxerr range: {np.nanmin(tbl['segment_fluxerr']):.4f} to {np.nanmax(tbl['segment_fluxerr']):.4f}")
+    print(f"SNR range:             {np.nanmin(snr):.4f} to {np.nanmax(snr):.4f}")
+    print(f"SNR median:            {np.nanmedian(snr):.4f}")
+    print(f"Sources with SNR >= 3: {(snr >= 3).sum()}")
+    print(f"Sources with SNR >= 0: {(snr >= 0).sum()}")
+    print(f"Sources with negative SNR: {(snr < 0).sum()}")
+    #***
+
+    n_before = len(tbl)
+    tbl = tbl[snr >= 3]
+    tbl = tbl.copy() 
+    n_after = len(tbl)
+    print(f"SNR filter (>= {3}): kept {n_after}/{n_before} sources")
+
+    #"""
+    # Calculate Gini coefficient for each source
+    gini_values = []
+    for label in tbl['label']:
+        source_pixels = image_sub[segm.data == label]
+        gini_values.append(calculate_gini(source_pixels))
+    tbl['gini'] = gini_values
+
+    # Filtering for sources with Gini Coefficient >= 0.5
+    gini_mask = tbl['gini'] >= 0.5
+    n_before = len(tbl)
+    tbl = tbl[gini_mask]
+    tbl = tbl.copy() 
+    n_after = len(tbl)
+    print(f"Gini filter (>= 0.5): kept {n_after}/{n_before} sources")
+    #"""
+
+
+    # Image is in MJy/sr, kron_flux is the SUM over Kron aperture
+    # kron_flux = Σ(MJy/sr) over N pixels in aperture
+    # To get total flux we need to account for solid angle
+    # Each pixel has solid angle = PIXAR_SR
+    # Total flux = kron_flux × PIXAR_SR
+    
+    pixel_area_sr = header['PIXAR_SR']  # steradians per pixel
+    
+    # Convert to total flux in Jy
+    # kron_flux [MJy/sr] × pixel_area [sr/pixel] = MJy/pixel
+    # But kron_flux is summed over N pixels, so it's (MJy/sr)×pixels
+    # Multiply by pixel_area to get MJy, then ×10^6 for Jy
+
+    kron_flux_jy = tbl['kron_flux'] * pixel_area_sr * 1e6
+    kron_fluxerr_jy = tbl['kron_fluxerr'] * pixel_area_sr * 1e6
+    
+    # Adding units
+    kron_flux_jy = kron_flux_jy * u.Jy
+    kron_fluxerr_jy = kron_fluxerr_jy * u.Jy
+    
+    # Converting to AB magnitudes
+    mag = kron_flux_jy.to(u.ABmag)
+    magerr = 2.5 / np.log(10) * (kron_fluxerr_jy / kron_flux_jy)
+    magerr = magerr.value * u.ABmag
+
     tbl['ab_kron_mag'] = mag
     tbl['ab_kron_mag_err'] = magerr
-
 
     tbl.rename_column('label', 'id')
     return tbl, catalog
 
 def strip_quantity(x):
     return x.value if isinstance(x, Quantity) else x
-
-def flux_to_ab_mag(flux, pixar_sr, zeropoint=6.1):
-
-    # Not used anymore, replaced by fluxes2mags
-
-    flux = np.array(flux)
-    valid = flux > 0
-    mags = MaskedColumn(np.zeros_like(flux), mask=~valid)
-    mags[valid] = -2.5 * np.log10(flux[valid] * pixar_sr) - zeropoint
-    return mags
-
-def my_aperture_photometry(tbl, image_sub, wcs, data_rms):
+    
+def my_aperture_photometry(tbl, image_sub, wcs, data_rms, header):
 
     # defining annuli and appertures
     positions = np.transpose([tbl['xcentroid'].data, tbl['ycentroid'].data])
@@ -124,41 +234,40 @@ def my_aperture_photometry(tbl, image_sub, wcs, data_rms):
     phot_table['bkg_mean'] = bkg_mean
     phot_table['bkg_subtracted_flux'] = bkg_sub_flux
     
-    phot_table['ab_aperture_mag'], phot_table['ab_aperture_mag_err'] = fluxes2mags(phot_table['bkg_subtracted_flux'] * u.nJy, phot_table['bkg_subtracted_flux_err'] * u.nJy)
+    pixel_area_sr = header['PIXAR_SR'] * u.sr
 
+    mag, magerr = fluxes2mags( phot_table['bkg_subtracted_flux'], phot_table['bkg_subtracted_flux_err'], pixel_area_sr)
 
-    """
-    # calculating magnitudes
-    phot_table['bkg_mean'] = bkg_mean
-    phot_table['bkg_subtracted_flux'] = bkg_sub_flux
-    phot_table['ab_aperture_mag'] = flux_to_ab_mag(phot_table['bkg_subtracted_flux'], image_header['PIXAR_SR'])
-
-    # writing aperture error in table
-    phot_table['ab_aperture_mag_err'] = fluxes2mags(phot_table['bkg_subtracted_flux'], phot_table['bkg_subtracted_flux_err'])
-    """
+    phot_table['ab_aperture_mag'] = mag
+    phot_table['ab_aperture_mag_err'] = magerr
 
     return phot_table, apertures, annulus_apertures
 
-def fluxes2mags(flux, fluxerr):
-    nondet = flux < 0  # Non-detection if flux is negative
-    unobs = (fluxerr <= 0) + (fluxerr == np.inf)  # Unobserved if flux uncertainty is negative or infinity
+def fluxes2mags(flux_sb, fluxerr_sb, pixel_area_sr):
+    #Convert surface brightness (MJy/sr) summed over pixels into AB magnitudes.
 
+    # Attach units (surface brightness)
+    flux_sb = flux_sb * u.MJy / u.sr
+    fluxerr_sb = fluxerr_sb * u.MJy / u.sr
+
+    # Convert to flux density (Jy)
+    flux = (flux_sb * pixel_area_sr).to(u.Jy)
+    fluxerr = (fluxerr_sb * pixel_area_sr).to(u.Jy)
+
+    # AB magnitude
     mag = flux.to(u.ABmag)
-    magupperlimit = fluxerr.to(u.ABmag)  # 1-sigma upper limit if flux=0
 
-    mag = np.where(nondet, 99 * u.ABmag, mag)
-    mag = np.where(unobs, -99 * u.ABmag, mag)
-
-    magerr = 2.5 * np.log10(1 + fluxerr / flux)
-    magerr = magerr.value * u.ABmag
-
-    magerr = np.where(nondet, magupperlimit, magerr)
-    magerr = np.where(unobs, 0 * u.ABmag, magerr)
+    # Magnitude uncertainty
+    magerr = 2.5 / np.log(10) * (fluxerr / flux)
 
     return mag, magerr
 
 
 def kron_photometry(tbl, phot_table):
+
+    # copying to prevent mutation of the original
+    tbl = tbl.copy()                 
+    phot_table = phot_table.copy()   
 
     # Adding Kron photometry to phot_table:
     tbl['id'] = np.arange(len(tbl))
