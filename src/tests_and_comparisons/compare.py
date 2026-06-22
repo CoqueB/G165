@@ -41,7 +41,7 @@ def mask_catalog_with_weight(cat, wcs, weight, wht_min=0.001):
 
 def open_catalogs():
     ref = Table.read("./phot_massimo_iso.cat",format="ascii")
-    cat = Table.read("./output/exp_tme_test/photometry_results_f200.csv", format="csv")
+    cat = Table.read("./output/gini_test/photometry_results_f200.csv", format="csv")
     # cat = Table.read("./output/f_200_deblending_on/photometry_results_f200.csv", format="csv")
 
     print("Massimo columns:")
@@ -368,7 +368,7 @@ def plot_outliers_on_image(outlier_table, ref_matched, cat_matched, output_dir):
     # Get all matched sources
     all_ra = cat_matched['ra']
     all_dec = cat_matched['dec']
-    n
+    
     ax = axes[0]
     
     # Plots all sources as small gray dots

@@ -42,7 +42,6 @@ def load_weightfile(wht_file):
 def calculate_uncertainty(image_header, image_data, weight_data, bkg):
     exposure_time = image_header["XPOSURE"]
     print("XPOSURE =", exposure_time)
-    exposure_time_map = (exposure_time * bkg.background_rms_median**2 * weight_data )
 
     #***
     print("bkg.background_rms_median =", bkg.background_rms_median)
@@ -53,6 +52,9 @@ def calculate_uncertainty(image_header, image_data, weight_data, bkg):
     mask = weight_data > 1e-3
     background_rms[mask] = 1 / np.sqrt(weight_data[mask])
     # print(background_rms[background_rms > 0][:20])   
+
+    bkg_rms_median = np.nanmedian(background_rms[background_rms > 0])
+    exposure_time_map = (exposure_time * bkg_rms_median**2 * weight_data )
 
     # ***
     valid = weight_data > 0
@@ -102,8 +104,8 @@ def calculate_gini(flux):
     flux = np.asarray(flux).flatten()    
     flux = flux[np.isfinite(flux)]   # Remove NaNs
 
-    # Gini assumes positive values.
-    # For background-subtracted images, small negative values can occur.
+    # Gini assumes positive values
+    # For background-subtracted images, small negative values can occur
     flux = flux[flux > 0]
     n = len(flux)
     if n == 0:
@@ -137,7 +139,6 @@ def extract_source_properties(image_sub, segm, data_rms, header):
     print(f"SNR median:            {np.nanmedian(snr):.4f}")
     print(f"Sources with SNR >= 3: {(snr >= 3).sum()}")
     print(f"Sources with SNR >= 0: {(snr >= 0).sum()}")
-    print(f"Sources with negative SNR: {(snr < 0).sum()}")
     #***
 
     n_before = len(tbl)
@@ -146,7 +147,7 @@ def extract_source_properties(image_sub, segm, data_rms, header):
     n_after = len(tbl)
     print(f"SNR filter (>= {3}): kept {n_after}/{n_before} sources")
 
-    #"""
+    """"
     # Calculate Gini coefficient for each source
     gini_values = []
     for label in tbl['label']:
@@ -161,7 +162,7 @@ def extract_source_properties(image_sub, segm, data_rms, header):
     tbl = tbl.copy() 
     n_after = len(tbl)
     print(f"Gini filter (>= 0.5): kept {n_after}/{n_before} sources")
-    #"""
+    """
 
 
     # Image is in MJy/sr, kron_flux is the SUM over Kron aperture
