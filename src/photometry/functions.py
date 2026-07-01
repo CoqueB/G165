@@ -147,7 +147,7 @@ def extract_source_properties(image_sub, segm, data_rms, header):
     n_after = len(tbl)
     print(f"SNR filter (>= {3}): kept {n_after}/{n_before} sources")
 
-    """"
+    """    
     # Calculate Gini coefficient for each source
     gini_values = []
     for label in tbl['label']:
@@ -155,8 +155,8 @@ def extract_source_properties(image_sub, segm, data_rms, header):
         gini_values.append(calculate_gini(source_pixels))
     tbl['gini'] = gini_values
 
-    # Filtering for sources with Gini Coefficient >= 0.5
-    gini_mask = tbl['gini'] >= 0.5
+    # Filtering for sources with Gini Coefficient <= 0.5
+    gini_mask = tbl['gini'] < 0.5
     n_before = len(tbl)
     tbl = tbl[gini_mask]
     tbl = tbl.copy() 

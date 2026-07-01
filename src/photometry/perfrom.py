@@ -97,7 +97,7 @@ class Photometry():
     def printing_storing(self, phot_table, output_dir):
         print("Photometry complete. Results:")
         print(phot_table)
-        file_name = 'photometry_results_f200.csv'
+        file_name = 'photometry_results_f200w.csv'
         phot_table.write(os.path.join(output_dir, file_name),format='csv', overwrite=True)
         print("Photometry results saved to", file_name , "in", output_dir)
 

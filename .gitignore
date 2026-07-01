@@ -186,6 +186,7 @@ cutouts/
 old_output/
 original_small_cutouts/
 output/
+multiband_output/
 
 
 # Old pipeline
