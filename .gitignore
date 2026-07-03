@@ -196,9 +196,10 @@ improved_aperture_photometry.py
 anomalies.py
 foo.py
 compare_cutouts.py
-compare_multiband.py
+
 diagnostics
 detection_plots.py
+make_cutouts.py
 
 # Massimo's Catalouge
 

@@ -1,6 +1,6 @@
 
 # Multiband:
-# ----------
+
 
 import os
 import numpy as np
@@ -134,10 +134,7 @@ def create_regions_file(idx_ref, idx_cat, ref, cat, max_sep, output_dir):
 
     with open(region_filename, "w") as f:
         f.write("fk5\n")
-        f.write("# Catalog Matching Visualization\n")
-        f.write("# Red = ref (Massimo's) catalog\n")
-        f.write("# Green = cat (my) catalog\n")
-        f.write("# Orange lines = Matched pairs\n\n")
+        f.write("# red = Massimo, green = mine, orange = match lines\n\n")
 
         # Orange lines connect matched pairs
         for ref_idx, cat_idx in zip(idx_ref, idx_cat):
@@ -164,45 +161,6 @@ def create_regions_file(idx_ref, idx_cat, ref, cat, max_sep, output_dir):
     print(f"  Green circles: {len(idx_cat)} matched sources from cat catalog")
     print(f"  Orange lines: {len(idx_cat)} connections between matched pairs")
 
-
-def plot_aperture_source_flux(ref, cat, ref_flux_col, cat_flux_col, output_dir, band):
-
-    if ref_flux_col not in ref.colnames:
-        raise ValueError(
-            f"'{ref_flux_col}' not found in ref catalog. "
-            f"Available columns: {ref.colnames}" )
-
-    if cat_flux_col not in cat.colnames:
-        raise ValueError(
-            f"'{cat_flux_col}' not found in cat catalog. "
-            f"Available columns: {cat.colnames}" )
-
-    ref_flux = ref[ref_flux_col]
-    cat_flux = cat[cat_flux_col]
-
-    # Remove non-physical values
-    ref_flux = ref_flux[ref_flux > 0]
-    cat_flux = cat_flux[cat_flux > 0]
-
-    # Shared logarithmic bins
-    bins = np.logspace(
-        np.log10(min(ref_flux.min(), cat_flux.min())),
-        np.log10(max(ref_flux.max(), cat_flux.max())),
-        50  )
-
-    plt.figure(figsize=(7,5))
-    plt.hist(ref_flux, bins=bins, histtype='step', label='Reference catalog')
-    plt.hist(cat_flux, bins=bins, histtype='step', label='Comparison catalog')
-
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel('mag')
-    plt.ylabel('Number of sources')
-    plt.legend()
-    plt.tight_layout()
-
-    plt.savefig(os.path.join(output_dir, f'{band}_aperture_hist.png'), dpi=300, bbox_inches='tight')
-    plt.close()
 
 
 def plot_kron_source_flux(ref, cat, ref_flux_col, cat_flux_col, output_dir, band):
@@ -366,7 +324,9 @@ def merge_multiband_catalog(bands, max_sep=0.05*u.arcsec, mag_col='ab_kron_mag')
 
         print(f"  [merge] {band}: matched {good.sum()}/{len(master)} anchor sources "
               f"within {max_sep}")
-
+        
+    file_name = 'multiband_catalouge'
+    master.write(os.path.join(base_output_dir, file_name),format='csv', overwrite=True)
     return master
 
 
@@ -443,9 +403,11 @@ def plot_color_color_overlaid(ref, merged_cat, output_dir):
         ax.set_xlabel(f"{xcolor[0].upper()}W-{xcolor[1].upper()}W")
         ax.set_ylabel(f"{ycolor[0].upper()}W-{ycolor[1].upper()}W")
 
+        """
         ax.set_xlim(-1, 1)
         ax.set_ylim(-1, 1)
         ax.set_aspect('equal')
+        """
 
     axes[0].legend(markerscale=5)
 
@@ -470,23 +432,9 @@ def plot_cmd_f200_overlaid(ref, merged_cat, output_dir):
 
     plt.figure(figsize=(7,7))
 
-    plt.plot(
-        ref_color[good_ref],
-        ref_mag[good_ref],
-        '.',
-        color='black',
-        ms=2,
-        alpha=0.5,
-        label='Reference')
+    plt.plot( ref_color[good_ref], ref_mag[good_ref],'.', color='black', ms=2, alpha=0.5, label='Reference')
 
-    plt.plot(
-        cat_color[good_cat],
-        cat_mag[good_cat],
-        '.',
-        color='red',
-        ms=2,
-        alpha=0.5,
-        label='My catalog' )
+    plt.plot( cat_color[good_cat], cat_mag[good_cat], '.', color='red', ms=2,  alpha=0.5, label='My catalog')
 
     plt.xlabel('F200W - F277W')
     plt.ylabel('F200W')
@@ -499,9 +447,7 @@ def plot_cmd_f200_overlaid(ref, merged_cat, output_dir):
     plt.legend()
     plt.tight_layout()
 
-    outfile = os.path.join(
-        output_dir,
-        'color_mag_f200_overlaid.png' )
+    outfile = os.path.join(output_dir, 'color_mag_f200_overlaid.png')
 
     plt.savefig(outfile, dpi=200)
     plt.close()
@@ -525,23 +471,9 @@ def plot_cmd_f277_overlaid(ref, merged_cat, output_dir):
 
     plt.figure(figsize=(7,7))
 
-    plt.plot(
-        ref_color[good_ref],
-        ref_mag[good_ref],
-        '.',
-        color='black',
-        ms=2,
-        alpha=0.5,
-        label='Reference')
+    plt.plot(ref_color[good_ref], ref_mag[good_ref], '.', color='black', ms=2, alpha=0.5, label='Reference')
 
-    plt.plot(
-        cat_color[good_cat],
-        cat_mag[good_cat],
-        '.',
-        color='red',
-        ms=2,
-        alpha=0.5,
-        label='My catalog')
+    plt.plot(cat_color[good_cat], cat_mag[good_cat], '.', color='red', ms=2, alpha=0.5, label='My catalog')
 
     plt.xlabel('F200W - F277W')
     plt.ylabel('F277W')
@@ -573,10 +505,9 @@ cat_matched_per_band = {}
 for band in bands:
     print(f"\n Processing {band} ")
 
-    # Column names (f410 is a medium band -> "m" suffix in Massimo's catalog)
+    # Column names (f410 is a medium band so "m" suffix in Massimo's catalog)
     ref_mag_col = band + "m" if band == "f410" else band + "w"
     cat_kron_col = "ab_kron_mag"
-    cat_ap_col = "ab_aperture_mag"
 
     # Load image + weight
     img_hdu = fits.open(image_files[band])[0]
@@ -598,55 +529,43 @@ for band in bands:
     massimo_cat = mask_catalog_with_weight(massimo_cat, wcs, weight).copy()
 
     # Cross-match with tiered search radius
-    max_sep, idx_ref, idx_cat, sep2d, ref_matched, cat_matched = search(
-        massimo_cat, my_cat, ref_mag_col=ref_mag_col, cat_mag_col=cat_kron_col )
+    max_sep, idx_ref, idx_cat, sep2d, ref_matched, cat_matched = search(massimo_cat, my_cat, ref_mag_col=ref_mag_col, cat_mag_col=cat_kron_col )
 
     # Regions file with orange match lines
     create_regions_file(idx_ref, idx_cat, massimo_cat, my_cat, max_sep, output_dir)
 
     # Histograms
-    #plot_aperture_source_flux(ref=massimo_cat, cat=my_cat, ref_flux_col=ref_mag_col, cat_flux_col=cat_ap_col, output_dir=output_dir, band=band)
-    plot_kron_source_flux(ref=massimo_cat, cat=my_cat, ref_flux_col=ref_mag_col,
-                           cat_flux_col=cat_kron_col, output_dir=output_dir, band=band)
+    plot_kron_source_flux(ref=massimo_cat, cat=my_cat, ref_flux_col=ref_mag_col, cat_flux_col=cat_kron_col, output_dir=output_dir, band=band)
 
-    # plot_pixel_flux(image_data, output_dir, band)
+    #plot_pixel_flux(image_data, output_dir, band)
 
     # Delta mag vs mag
-    plot_delta_mag_vs_mag(ref=ref_matched, cat=cat_matched, ref_mag_col=ref_mag_col,
-                           cat_mag_col=cat_kron_col, output_dir=output_dir, band=band)
+    plot_delta_mag_vs_mag(ref=ref_matched, cat=cat_matched, ref_mag_col=ref_mag_col, cat_mag_col=cat_kron_col, output_dir=output_dir, band=band)
 
     # plot_mag_err_vs_mag(cat=cat_matched, mag_col=cat_ap_col, mag_err_col='ab_aperture_mag_err', output_dir=output_dir, band=band)
 
 
-    # Stash matched catalogs for the color-color diagrams below
+    # Store matched catalogs for the color-color diagrams below
+    # This produces 8 pairs of matched catalogs for the multi-band analysis
+
     ref_matched_per_band[band] = ref_matched
     cat_matched_per_band[band] = cat_matched
 
 
-# Use f200 matched catalog as the reference source for all overlay plots.
-base_band = "f200"
-
 # Color-color diagrams
-base_band = "f200" if "f200" in ref_matched_per_band else list(ref_matched_per_band.keys())[0]
+
+# Use f200 matched catalog as the reference source for all overlay plots
+base_band = "f200"
 
 try:
     merged_cat = merge_multiband_catalog(bands)
 
     # overplot both catalogs
-    plot_color_color_overlaid(
-        ref_matched_per_band[base_band],
-        merged_cat,
-        base_output_dir)
+    plot_color_color_overlaid( ref_matched_per_band[base_band], merged_cat, base_output_dir)
     
     # Color magnitude diagrams
     plot_cmd_f200_overlaid(ref_matched_per_band[base_band], merged_cat, base_output_dir)
     plot_cmd_f277_overlaid(ref_matched_per_band[base_band], merged_cat, base_output_dir)
 
 except FileNotFoundError as e:
-    print(f"\n[color-color] Skipping merged-catalog diagrams: {e}")
-
-
-# Color magnitude diagrams
-
-plot_cmd_f200_overlaid(ref_matched_per_band[base_band],merged_cat,base_output_dir)
-plot_cmd_f277_overlaid(ref_matched_per_band[base_band],merged_cat,base_output_dir)
+    print(f"\n[color-color] Skipping multiband catalog diagrams: {e}")

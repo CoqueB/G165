@@ -1,3 +1,7 @@
+
+# Single Band:
+
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,9 +11,6 @@ from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord, match_coordinates_sky
 
-
-# Single Band:
-# ------------
 
 
 img_hdu = fits.open("/mnt/c/Users/Coque/Downloads/mosaic_plckg165_nircam_f200w_30mas_20230403_drz.fits")[0]
@@ -41,8 +42,8 @@ def mask_catalog_with_weight(cat, wcs, weight, wht_min=0.001):
 
 def open_catalogs():
     ref = Table.read("./phot_massimo_iso.cat",format="ascii")
-    cat = Table.read("./output/gini_test/photometry_results_f200.csv", format="csv")
-    # cat = Table.read("./output/f_200_deblending_on/photometry_results_f200.csv", format="csv")
+    #cat = Table.read("./output/gini_tests/photometry_results_f200.csv", format="csv")
+    cat = Table.read("./output/f_200/photometry_results_f200.csv", format="csv")
 
     print("Massimo columns:")
     print(ref.colnames)
@@ -55,16 +56,17 @@ def open_catalogs():
     print(f"    My catalog before filtering: {len(cat)} sources")
     
     # Filter ref for reasonable Kron magnitudes
-    good_ref = (ref['f200w'] > 0) & (ref['f200w'] < 27)
+    good_ref = (ref['f200w'] > 0) & (ref['f200w'] < 28.54) # 28.54 comes from Frye +24
     ref = ref[good_ref]
     print(f"Massimo catalog after filtering: {len(ref)} sources")
-    print(f"  (Removed {(~good_ref).sum()} sources with f200w outside 0-27 range))")
+    print(f"  (Removed {(~good_ref).sum()} sources with f200w outside 0-28.54 range))")
     
     # Filter cat for reasonable Kron magnitudes
-    good_cat = (cat['ab_kron_mag'] > 0) & (cat['ab_kron_mag'] < 27)
+    good_cat = (cat['ab_kron_mag'] > 0) & (cat['ab_kron_mag'] < 28.54) # 28.54 comes from Frye +24
+    ref = ref[good_ref]
     cat = cat[good_cat]
     print(f"My catalog after filtering: {len(cat)} sources")
-    print(f"  (Removed {(~good_cat).sum()} sources with ab_kron_mag outside 0-27 range)")
+    print(f"  (Removed {(~good_cat).sum()} sources with ab_kron_mag outside 0-28.54 range)")
 
     return ref, cat
 
