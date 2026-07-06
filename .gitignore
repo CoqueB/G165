@@ -211,4 +211,5 @@ phot_massimo_iso.cat
 
 src/g165.egg-info/
 src/psf_training/
-
+src/photometry/detection_plots.py
+src/make_cutouts.py

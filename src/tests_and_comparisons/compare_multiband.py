@@ -50,26 +50,26 @@ def open_catalogs(band, ref_mag_col):
     ref = Table.read("./phot_massimo_iso.cat", format="ascii")
     cat = Table.read(f"./output/results_for_multiband/photometry_results_{band}.csv", format="csv")
 
-    print("Massimo columns:")
+    print("ref columns:")
     print(ref.colnames)
 
-    print("\nMy catalog columns:")
+    print("\ncat columns:")
     print(cat.colnames)
 
     print("Filtering Bad Magnitudes:")
-    print(f"    Massimo catalog before filtering: {len(ref)} sources")
-    print(f"    My catalog before filtering: {len(cat)} sources")
+    print(f"    ref before filtering: {len(ref)} sources")
+    print(f"    cat before filtering: {len(cat)} sources")
 
     # Filter ref for reasonable magnitudes 
     good_ref = (ref[ref_mag_col] > 0) & (ref[ref_mag_col] <  28.54) # 28.54 comes from Frye +24
     ref = ref[good_ref]
-    print(f"Massimo catalog after filtering: {len(ref)} sources")
+    print(f"ref after filtering: {len(ref)} sources")
     print(f"  (Removed {(~good_ref).sum()} sources with {ref_mag_col} outside 0-28.54 range)")
 
     # Filter cat for reasonable Kron magnitudes
     good_cat = (cat['ab_kron_mag'] > 0) & (cat['ab_kron_mag'] <  28.54) # 28.54 comes from Frye +24
     cat = cat[good_cat]
-    print(f"My catalog after filtering: {len(cat)} sources")
+    print(f"cat after filtering: {len(cat)} sources")
     print(f"  (Removed {(~good_cat).sum()} sources with ab_kron_mag outside 0-28.54 range)")
 
     return ref, cat
@@ -134,7 +134,7 @@ def create_regions_file(idx_ref, idx_cat, ref, cat, max_sep, output_dir):
 
     with open(region_filename, "w") as f:
         f.write("fk5\n")
-        f.write("# red = Massimo, green = mine, orange = match lines\n\n")
+        f.write("# red = ref, green = cat, orange = match lines\n\n")
 
         # Orange lines connect matched pairs
         for ref_idx, cat_idx in zip(idx_ref, idx_cat):
@@ -160,7 +160,6 @@ def create_regions_file(idx_ref, idx_cat, ref, cat, max_sep, output_dir):
     print(f"  Red circles: {len(ref)} sources from ref catalog")
     print(f"  Green circles: {len(idx_cat)} matched sources from cat catalog")
     print(f"  Orange lines: {len(idx_cat)} connections between matched pairs")
-
 
 
 def plot_kron_source_flux(ref, cat, ref_flux_col, cat_flux_col, output_dir, band):
@@ -203,18 +202,6 @@ def plot_kron_source_flux(ref, cat, ref_flux_col, cat_flux_col, output_dir, band
     plt.close()
 
 
-def plot_pixel_flux(image_data, output_dir, band):
-    pixels = image_data[np.isfinite(image_data)]
-    plt.figure(figsize=(7,5))
-    plt.hist(pixels, bins=500, histtype='step')
-    plt.yscale('log')
-    plt.xlabel('Pixel flux')
-    plt.ylabel('Number of pixels')
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, f'{band}_pixel_flux_histogram.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-
-
 def plot_delta_mag_vs_mag(ref, cat, ref_mag_col, cat_mag_col, output_dir, band):
 
     if ref_mag_col not in ref.colnames:
@@ -226,7 +213,7 @@ def plot_delta_mag_vs_mag(ref, cat, ref_mag_col, cat_mag_col, output_dir, band):
     ref_mag = ref[ref_mag_col]
     cat_mag = cat[cat_mag_col]
 
-    # Delta magnitude = mine - Massimo's
+    # Delta magnitude = mine - Massimo's   ,so (cat -ref)
     delta_mag = cat_mag - ref_mag
 
     # Remove non-finite values
@@ -299,35 +286,38 @@ def merge_multiband_catalog(bands, max_sep=0.05*u.arcsec, mag_col='ab_kron_mag')
         raise FileNotFoundError(f"No per-band catalogs found in {catalog_dir}")
 
     available_bands = list(per_band_cat.keys())
-    anchor_band = available_bands[0]
+    anchor_band = "f200"
+    if anchor_band not in per_band_cat:
+        raise ValueError(f"f200 catalog not found in {catalog_dir} — cannot use it as anchor")
     print(f"\n[merge] Using {anchor_band} as positional anchor ({len(per_band_cat[anchor_band])} sources)")
 
-    # Build the master table from the anchor band's positions
-    master = Table()
-    master['ra'] = per_band_cat[anchor_band]['ra']
-    master['dec'] = per_band_cat[anchor_band]['dec']
-    master[f'ab_kron_mag_{anchor_band}'] = per_band_cat[anchor_band][mag_col]
+    # Build the multiband table from the anchor band's positions
+    multiband = Table()
+    multiband['ra'] = per_band_cat[anchor_band]['ra']
+    multiband['dec'] = per_band_cat[anchor_band]['dec']
+    multiband[f'ab_kron_mag_{anchor_band}'] = per_band_cat[anchor_band][mag_col]
 
-    c_anchor = SkyCoord(ra=master['ra'] * u.deg, dec=master['dec'] * u.deg)
+    c_anchor = SkyCoord(ra=multiband['ra'] * u.deg, dec=multiband['dec'] * u.deg)
 
     # Cross-match every other band onto the anchor's positions
-    for band in available_bands[1:]:
+    for band in [b for b in available_bands if b != anchor_band]:
         cat = per_band_cat[band]
         c_band = SkyCoord(ra=cat['ra'] * u.deg, dec=cat['dec'] * u.deg)
 
         idx, sep2d, _ = match_coordinates_sky(c_anchor, c_band)
         good = sep2d < max_sep
 
-        col = np.full(len(master), np.nan)
+        col = np.full(len(multiband), np.nan)
         col[good] = cat[mag_col][idx[good]]
-        master[f'ab_kron_mag_{band}'] = col
+        multiband[f'ab_kron_mag_{band}'] = col
 
-        print(f"  [merge] {band}: matched {good.sum()}/{len(master)} anchor sources "
+        print(f"  [merge] {band}: matched {good.sum()}/{len(multiband)} anchor sources "
               f"within {max_sep}")
         
-    file_name = 'multiband_catalouge'
-    master.write(os.path.join(base_output_dir, file_name),format='csv', overwrite=True)
-    return master
+    file_name = 'multiband_catalouge.csv'
+    multiband.write(os.path.join(base_output_dir, file_name),format='csv', overwrite=True)
+    print("Produced multiband catalouge with", len(multiband),"sources")
+    return multiband
 
 
 def plot_color_color_overlaid(ref, merged_cat, output_dir):
@@ -495,9 +485,10 @@ def plot_cmd_f277_overlaid(ref, merged_cat, output_dir):
 
     print(f"color-mag f277 saved to {outfile}")
 
+
 # Main loop: process each band exactly like compare.py does
 
-# Stash matched catalogs from each band here, so we can build
+# Store matched catalogs from each band here, so we can build
 # combined ref/cat tables for the color-color diagrams at the end
 ref_matched_per_band = {}
 cat_matched_per_band = {}
@@ -521,7 +512,7 @@ for band in bands:
     output_dir = os.path.join(base_output_dir, band)
     os.makedirs(output_dir, exist_ok=True)
 
-    # Open catalogs (with bad-magnitude filtering, like compare.py)
+    # Open catalogs
     massimo_cat, my_cat = open_catalogs(band, ref_mag_col)
 
     # Mask using weight map
@@ -536,8 +527,6 @@ for band in bands:
 
     # Histograms
     plot_kron_source_flux(ref=massimo_cat, cat=my_cat, ref_flux_col=ref_mag_col, cat_flux_col=cat_kron_col, output_dir=output_dir, band=band)
-
-    #plot_pixel_flux(image_data, output_dir, band)
 
     # Delta mag vs mag
     plot_delta_mag_vs_mag(ref=ref_matched, cat=cat_matched, ref_mag_col=ref_mag_col, cat_mag_col=cat_kron_col, output_dir=output_dir, band=band)
