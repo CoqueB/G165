@@ -1,10 +1,9 @@
 
 
-# Takes the four spectroscopic/photo-z catalogues (arclets.csv, field_members.csv,
-# catalog_G165_spectra_prelim_24Aug22.txt, and the "Redshift ~0.35 Galaxies" PDF table),
+# Takes in catalogues of cluster members
 # keeps only sources with 3.25 <= zspec <= 3.75, cross-matches their positions against
 # Massimo's reference catalog and my multiband catalog, and overlays them on the
-# F200W vs (F200W-F277W) color-magnitude diagram produced by compare_multiband.py.
+# F200W vs (F200W-F277W) color-magnitude diagram produced by compare_multiband.py
 
 import os
 import numpy as np
@@ -14,16 +13,8 @@ from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord, match_coordinates_sky
 
 
-
-
-# Config -- adjust paths below to wherever these files actually live on disk
-
 z_min, z_max = 0.325, 0.375
-
-# Max separation allowed when cross-matching a high-z source onto a catalog
 max_sep = 0.3 * u.arcsec
-
-# Directory holding the four redshift catalogues -- EDIT if they live elsewhere
 redshift_catalogs_dir = "/mnt/c/Users/Coque/Downloads/"
 
 redshift_catalogs = {
@@ -36,15 +27,12 @@ redshift_catalogs = {
 # Massimo's reference catalog (same file compare_multiband.py reads)
 ref_path= "./phot_massimo_iso.cat"
 
-# My merged multiband catalog, written out by merge_multiband_catalog() in compare_multiband.py
+# My merged multiband catalog. Comes from merge_multiband_catalog() in compare_multiband.py
 cat_path = os.path.expanduser("~/G165/multiband_output/multiband_catalouge.csv")
 
-# Where to save the resulting plot
+
 output_dir = os.path.expanduser("~/G165/multiband_output/")
 output_file = os.path.join(output_dir, "color_mag_f200_highz_overlay.png")
-
-
-# Loaders for the four redshift catalogues
 
 
 def load_csv_zcat(path, catalog_name):
@@ -156,10 +144,6 @@ def build_highz_catalog():
     return highz
 
 
-
-# Cross-match high-z sources against a photometry catalog
-
-
 def cross_match_mags(highz, cat, mag_col_x, mag_col_y, max_sep=max_sep):
     """For each high-z source, finds the nearest neighbour in `cat` and returns
     its mag_col_x / mag_col_y values (NaN if no match within max_sep)."""
@@ -182,13 +166,9 @@ def cross_match_mags(highz, cat, mag_col_x, mag_col_y, max_sep=max_sep):
     return mag_x, mag_y, matched, sep_arcsec
 
 
-
-# Plot
-
-
 def plot_highz_overlay(ref, merged_cat, highz):
 
-    # background: same as plot_cmd_f200_overlaid() in compare_multiband.py ---
+    # background: same as plot_cmd_f200_overlaid() in compare_multiband.py 
     ref_mag = np.asarray(ref["f200w"], dtype=float)
     ref_color = ref_mag - np.asarray(ref["f277w"], dtype=float)
 
@@ -198,7 +178,7 @@ def plot_highz_overlay(ref, merged_cat, highz):
     good_ref = np.isfinite(ref_mag) & np.isfinite(ref_color)
     good_cat = np.isfinite(cat_mag) & np.isfinite(cat_color)
 
-    # foreground: high-z sources matched onto each catalog ---
+    # foreground: high-z sources matched onto each catalog
     ref_hz_mag, ref_hz_color_mag2, ref_matched, ref_sep = cross_match_mags(
         highz, ref, "f200w", "f277w")
     ref_hz_color = ref_hz_mag - ref_hz_color_mag2
