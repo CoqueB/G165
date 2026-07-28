@@ -188,8 +188,8 @@ def plot_kron_source_flux(ref, cat, ref_flux_col, cat_flux_col, output_dir, band
         50 )
 
     plt.figure(figsize=(7,5))
-    plt.hist(ref_flux, bins=bins, histtype='step', label='Reference catalog')
-    plt.hist(cat_flux, bins=bins, histtype='step', label='Comparison catalog')
+    plt.hist(ref_flux, bins=bins, histtype='step', label='Reference (Massimo) catalog')
+    plt.hist(cat_flux, bins=bins, histtype='step', label='Comparison (Jorge) catalog')
 
     plt.xscale('log')
     plt.yscale('log')
@@ -367,7 +367,7 @@ def plot_color_color_overlaid(ref, merged_cat, output_dir):
                 color='black',
                 ms=1.5,
                 alpha=0.5,
-                label='Reference' if i == 0 else None )
+                label='Massimo cat' if i == 0 else None )
 
         # my catalog
         cat_cols = [
@@ -388,16 +388,16 @@ def plot_color_color_overlaid(ref, merged_cat, output_dir):
                 color='red',
                 ms=1.5,
                 alpha=0.5,
-                label='My catalog' if i == 0 else None)
+                label='Jorge cat' if i == 0 else None)
 
         ax.set_xlabel(f"{xcolor[0].upper()}W-{xcolor[1].upper()}W")
         ax.set_ylabel(f"{ycolor[0].upper()}W-{ycolor[1].upper()}W")
 
-        """
+        
         ax.set_xlim(-1, 1)
         ax.set_ylim(-1, 1)
         ax.set_aspect('equal')
-        """
+        
 
     axes[0].legend(markerscale=5)
 
@@ -422,9 +422,9 @@ def plot_cmd_f200_overlaid(ref, merged_cat, output_dir):
 
     plt.figure(figsize=(7,7))
 
-    plt.plot( ref_color[good_ref], ref_mag[good_ref],'.', color='black', ms=2, alpha=0.5, label='Reference')
+    plt.plot( ref_color[good_ref], ref_mag[good_ref],'.', color='black', ms=2, alpha=0.5, label='Massimo cat')
 
-    plt.plot( cat_color[good_cat], cat_mag[good_cat], '.', color='red', ms=2,  alpha=0.5, label='My catalog')
+    plt.plot( cat_color[good_cat], cat_mag[good_cat], '.', color='red', ms=2,  alpha=0.5, label='Jorge cat')
 
     plt.xlabel('F200W - F277W')
     plt.ylabel('F200W')
@@ -461,9 +461,9 @@ def plot_cmd_f277_overlaid(ref, merged_cat, output_dir):
 
     plt.figure(figsize=(7,7))
 
-    plt.plot(ref_color[good_ref], ref_mag[good_ref], '.', color='black', ms=2, alpha=0.5, label='Reference')
+    plt.plot(ref_color[good_ref], ref_mag[good_ref], '.', color='black', ms=2, alpha=0.5, label='Massimo cat')
 
-    plt.plot(cat_color[good_cat], cat_mag[good_cat], '.', color='red', ms=2, alpha=0.5, label='My catalog')
+    plt.plot(cat_color[good_cat], cat_mag[good_cat], '.', color='red', ms=2, alpha=0.5, label='Jorge cat')
 
     plt.xlabel('F200W - F277W')
     plt.ylabel('F277W')
@@ -554,7 +554,7 @@ try:
     
     # Color magnitude diagrams
     plot_cmd_f200_overlaid(ref_matched_per_band[base_band], merged_cat, base_output_dir)
-    plot_cmd_f277_overlaid(ref_matched_per_band[base_band], merged_cat, base_output_dir)
+    #plot_cmd_f277_overlaid(ref_matched_per_band[base_band], merged_cat, base_output_dir)
 
 except FileNotFoundError as e:
     print(f"\n[color-color] Skipping multiband catalog diagrams: {e}")

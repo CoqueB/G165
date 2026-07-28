@@ -29,7 +29,6 @@ class Photometry():
         self.phot_table = kron_photometry(self.tbl, self.phot_table)
 
         self.create_regions_file(self.phot_table, self.output_dir, self.catalog)
-        #self.plotting_images(self.image_sub, self.apertures, self.annulus_apertures, self.output_dir, self.catalog)
         self.printing_storing(self.phot_table, self.output_dir)
 
     def create_regions_file(self, phot_table, output_dir, catalog):
@@ -73,26 +72,6 @@ class Photometry():
                     f.write(f"circle({xk:.3f},{yk:.3f},14) # color=violet width=1\n")
 
         print(f"DS9 region file saved to: {region_filename}")
-    
-    def plotting_images(self, image_sub, apertures, annulus_apertures, output_dir, catalog):
-        norm = simple_norm(image_sub, 'sqrt', vmin= -0.01, vmax= 0.5)
-        plt.figure(figsize=(10, 8))
-        plt.imshow(image_sub, cmap='inferno', norm=norm, origin='lower')
-
-        for aperture in apertures:
-            aperture.plot(color='cyan', lw=0.5)
-
-        for src in catalog:
-            kron_ap = src.kron_aperture
-            if kron_ap is not None:
-                kron_ap.plot(color='violet', lw=0.5, alpha=0.8)
-
-
-        plt.title('Detected Sources with Apertures')
-        plt.xlabel('X Pixel')
-        plt.ylabel('Y Pixel')
-        plt.colorbar(label='Intensity')
-        plt.savefig(os.path.join(output_dir, 'aperture_overlay.png'), dpi=300, bbox_inches='tight')
 
     def printing_storing(self, phot_table, output_dir):
         print("Photometry complete. Results:")
